@@ -1,0 +1,565 @@
+
+%% INITIALIZATION
+clear all; close all;
+
+%%% PLEASE MAKE SURE:
+%%% 1. YOU HAVE Matlab2013b or later
+%%% 2. YOU HAVE ALL REQUIRED TOOLBOXES (typically the case)
+%%% 3. YOUR SLEEPTRIP FOLDER DIRECTLY HAS THE FILES IN THEM, 
+%%%    e.g. while extracting a zip from github maybe you need to refer to 
+%%%    D:/sleeptrip-master/sleeptrip-master instead of D:/sleeptrip-master
+%%% 4. NO FieldTrip NOR related toolboxes like EEGLAB are loaded or in the 
+%%%    PATH of your MATLAB
+
+pathToFieldTrip = 'M:\Documents\FieldTrip\fieldtrip';
+addpath(pathToFieldTrip);
+addpath('P:\3013077.01\');
+addpath('P:\3013077.01\Scripts_301307701\Shervin')
+%load('LD_data') %Load Data
+load('P:\3013077.01\Scripts_301307701\Shervin\topography\cue_topo.mat') %Load Topo
+%%% disable some toolboxes if necessary and check if 
+%%% 'signal_toolbox', 'signal_blocks' are available 
+%%% because they are helpful to have.
+%  toggleToolbox('names');
+%  toggleToolbox('dsp','off');
+%  toggleToolbox('all','query');
+%  license('inuse');
+ft_defaults
+
+%% REDEFINE WITH OVERLAP
+for N=1:numel(Data_fltr_altica)
+cfg = [];
+cfg.length =5;
+cfg.overlap =0.5;
+Ovlp{N}=ft_redefinetrial(cfg, Data_fltr_altica{N});
+end
+
+cfg =[];
+cfg.keepsampleinfo  = 'yes';
+SVLDs2 = ft_appenddata(cfg, Data_fltr_altica{1,5}, Data_fltr_altica{1,6}, Data_fltr_altica{1,7});
+notLDs2 = ft_appenddata(cfg, Data_fltr_altica{1,1}, Data_fltr_altica{1,2}, Data_fltr_altica{1,3}, Data_fltr_altica{1,4});
+
+%% Power Spectrum Analysis
+for N=1:numel(Ovlp)
+cfg.method = 'mtmfft';
+cfg.keeptrials = 'yes';                            
+cfg.output      = 'pow';
+cfg.taper = 'hanning';
+cfg.channel ={'all' '-H*' '-V*'};
+cfg.foi = 0:(1/5):45;
+cfg.pad     = 'nextpow2';
+cfg.tapsmofrq = 0;
+origh{N}=ft_freqanalysis(cfg, Ovlp{N});
+cfg.method='irasa';
+frac=ft_freqanalysis(cfg, Ovlp{N});
+end
+%only SVLDs
+cfg.method = 'mtmfft';
+cfg.keeptrials = 'yes';                            
+cfg.output      = 'pow';
+cfg.taper = 'hanning';
+cfg.channel ={'all' '-H*' '-V*'};
+cfg.foi = 0:(1/5):45;
+cfg.tapsmofrq = 0;
+cfg.pad     = 'nextpow2';
+SVLD_origh=ft_freqanalysis(cfg, SVLD_ovlp2);
+cfg.method = 'irasa';
+SVLD_frac=ft_freqanalysis(cfg, SVLD_ovlp2);
+%notLD
+cfg.method = 'mtmfft';
+cfg.keeptrials = 'yes';                            
+cfg.output      = 'pow';
+cfg.trials = randperm(120,108);
+cfg.taper = 'hanning';
+cfg.channel ={'all' '-H*' '-V*'};
+cfg.foi = 0:(1/5):45;
+cfg.pad     = 'nextpow2';
+cfg.tapsmofrq = 0;
+notLD_origh=ft_freqanalysis(cfg, notLDs_ovlp2);
+cfg.method = 'irasa';
+notLD_frac=ft_freqanalysis(cfg, notLDs_ovlp2);
+%% subtract the fractal component from the power spectrum
+for N=1:numel(origh)
+cfg               = [];
+cfg.parameter     = 'powspctrm';
+cfg.operation     = 'x2-x1';
+osci{N} = ft_math(cfg,frac{N}, origh{N});
+end
+
+cfg               = [];
+cfg.parameter     = 'powspctrm';
+cfg.operation     = 'x2-x1';
+SVLD_osci = ft_math(cfg, SVLD_frac, SVLD_origh);
+
+cfg               = [];
+cfg.parameter     = 'powspctrm';
+cfg.operation     = 'x2-x1';
+notLD_osci = ft_math(cfg, notLD_frac, notLD_origh);
+%% Smooth the Original Hanning Spectrum
+notLD_origh.powspctrm = smoothdata(notLD_origh.powspctrm,3,'movmean',3);
+SVLD_origh.powspctrm = smoothdata(SVLD_origh.powspctrm,3,'movmean',3);
+%% Smooth Fractal Component
+notLD_frac.powspctrm = smoothdata(notLD_frac.powspctrm,3,'movmean',3);
+SVLD_frac.powspctrm = smoothdata(SVLD_frac.powspctrm,3,'movmean',3);
+%% Smooth the Oscillatory Spectrum
+
+notLD_osci.powspctrm = smoothdata(notLD_osci.powspctrm,3,'movmean',3);
+SVLD_osci.powspctrm =smoothdata(SVLD_osci.powspctrm,3,'movmean',3);
+%% Oscillatory Power of orighinal for each frequency band
+%SVLD
+cfg = [];
+cfg.frequency = [1 4];
+origh_SVLD_d=ft_selectdata(cfg, SVLD_origh);
+cfg = [];
+cfg.frequency = [4 8];
+origh_SVLD_t=ft_selectdata(cfg, SVLD_origh);
+cfg = [];
+cfg.frequency =[8 12];
+origh_SVLD_a=ft_selectdata(cfg, SVLD_origh);
+cfg = [];
+cfg.frequency =[12 20];
+origh_SVLD_b=ft_selectdata(cfg, SVLD_origh);
+cfg = [];
+cfg.frequency =[20 45];
+origh_SVLD_g=ft_selectdata(cfg, SVLD_origh);
+%nonLD
+cfg = [];
+cfg.frequency = [1 4];
+origh_notLD_d=ft_selectdata(cfg, notLD_origh);
+cfg = [];
+cfg.frequency = [4 8];
+origh_notLD_t=ft_selectdata(cfg, notLD_origh);
+cfg = [];
+cfg.frequency =[8 12];
+origh_notLD_a=ft_selectdata(cfg, notLD_origh);
+cfg = [];
+cfg.frequency =[12 30];
+origh_notLD_b=ft_selectdata(cfg, notLD_origh);
+cfg = [];
+cfg.frequency =[30 45];
+origh_notLD_g=ft_selectdata(cfg, notLD_origh);
+%% Oscillatory Power for each frequency band
+%SVLD
+cfg = [];
+cfg.frequency = [1 4];
+osci_SVLD_d=ft_selectdata(cfg, SVLD_osci);
+cfg = [];
+cfg.frequency = [4 8];
+osci_SVLD_t=ft_selectdata(cfg, SVLD_osci);
+cfg = [];
+cfg.frequency =[8 12];
+osci_SVLD_a=ft_selectdata(cfg, SVLD_osci);
+cfg = [];
+cfg.frequency =[12 30];
+osci_SVLD_b=ft_selectdata(cfg, SVLD_osci);
+cfg = [];
+cfg.frequency =[30 45];
+osci_SVLD_g=ft_selectdata(cfg, SVLD_osci);
+%nonLD
+cfg = [];
+cfg.frequency = [1 4];
+osci_notLD_d=ft_selectdata(cfg, notLD_osci);
+cfg = [];
+cfg.frequency = [4 8];
+osci_notLD_t=ft_selectdata(cfg, notLD_osci);
+cfg = [];
+cfg.frequency =[8 12];
+osci_notLD_a=ft_selectdata(cfg, notLD_osci);
+cfg = [];
+cfg.frequency =[12 30];
+osci_notLD_b=ft_selectdata(cfg, notLD_osci);
+cfg = [];
+cfg.frequency =[30 45];
+osci_notLD_g=ft_selectdata(cfg, notLD_osci); 
+%% Fractal Power for each frequency band
+%SVLD
+cfg = [];
+cfg.frequency = [1 4];
+frac_SVLD_d=ft_selectdata(cfg, SVLD_osci);
+cfg = [];
+cfg.frequency = [4 8];
+frac_SVLD_t=ft_selectdata(cfg, SVLD_osci);
+cfg = [];
+cfg.frequency =[8 12];
+frac_SVLD_a=ft_selectdata(cfg, SVLD_frac);
+cfg = [];
+cfg.frequency =[12 30];
+frac_SVLD_b=ft_selectdata(cfg, SVLD_frac);
+cfg = [];
+cfg.frequency =[30 45];
+frac_SVLD_g=ft_selectdata(cfg, SVLD_frac);
+%nonLD
+cfg = [];
+cfg.frequency = [1 4];
+frac_notLD_d=ft_selectdata(cfg, notLD_frac);
+cfg = [];
+cfg.frequency = [4 8];
+frac_notLD_t=ft_selectdata(cfg, notLD_frac);
+cfg = [];
+cfg.frequency =[8 12];
+frac_notLD_a=ft_selectdata(cfg, notLD_frac);
+cfg = [];
+cfg.frequency =[12 30];
+frac_notLD_b=ft_selectdata(cfg, notLD_frac);
+cfg = [];
+cfg.frequency =[30 45];
+frac_notLD_g=ft_selectdata(cfg, notLD_frac);
+
+%%
+for N=1:numel(origh)
+figure;
+cfg = [];
+% cfg.showlabels   = 'yes';
+cfg.layout = lay;
+cfg.colorbar     = 'yes';
+xlabel('Frequency (Hz)');
+ylabel('Total power (µV^2)');
+ft_singleplotER(cfg, origh{N})
+title('PSD')
+end
+%%
+%Descriptives
+for N=1:numel(origh)
+cfg =[];
+PSD_dsc{N}=ft_freqdescriptives(cfg, origh{N});
+end 
+cfg =[];
+cfg.keeptrials    = 'yes';
+cfg.variance      = 'yes';
+PSD_notLD_dsc = ft_freqdescriptives(cfg, not);
+PSD_SVLD_dsc = ft_freqdescriptives(cfg, PSD_SVLD2);
+
+cfg =[];
+figure; ft_singleplotER(cfg, notLD_origh, notLD_osci,notLD_frac, SVLD_origh, SVLD_osci, SVLD_frac);
+%% Grand average
+cfg=[];
+PSD_dsc_noLD2=ft_freqgrandaverage(cfg, PSD_dsc2{1,1},PSD_dsc2{1,2},PSD_dsc2{1,3},PSD_dsc2{1,4});
+PSD_dsc_SVLD2=ft_freqgrandaverage(cfg, PSD_dsc2{1,5}, PSD_dsc2{1,6},PSD_dsc2{1,7});
+%%
+SVLD_osci.logpowspctrm =log10(SVLD_osci.powspctrm);
+notLD_osci.logpowspctrm =log10(notLD_osci.powspctrm);
+SVLD_frac.logpowspctrm = log10(SVLD_frac.powspctrm);
+notLD_frac.logpowspctrm = log10(notLD_frac.powspctrm);
+f= linspace(0,45,226);
+mp1 = mean(SVLD_osci.powspctrm,[1 2]);
+var1 = var(mean(SVLD_osci.powspctrm,2));
+var1 = squeeze(var1);
+n1 = 112;
+sem1 = sqrt(var1)./sqrt(n1);
+mp1=squeeze(mp1);
+mp2 = mean(notLD_osci.powspctrm,[1 2]);
+mp2=squeeze(mp2);
+var2 = var(mean(notLD_osci.powspctrm,2));
+var2=squeeze(var2);
+n1 = 112;
+sem2 = sqrt(var2)./sqrt(n1);
+figure;
+x = [f flip(f)];
+facealpha = 0.4;
+y_above = mp1+sem1;
+y_below = mp1-sem1;
+y_patch = [y_above; flip(y_below)];
+figure;ft_plot_patch(x, y_patch,'facecolor','r','facealpha',facealpha)
+y_above = mp2+sem2;
+y_below = mp2-sem2;
+y_patch = [y_above; flip(y_below)];
+ft_plot_patch(x, y_patch,'facecolor','b','facealpha',facealpha)
+p1=ft_plot_line(f, mp1,'color','r','linewidth',2);
+p2=ft_plot_line(f, mp2,'color','b','linewidth',2);
+legend([p1 p2],{'SVLDs','nonLDs'})
+xlabel('Frequency (Hz)');
+ylabel('Absolute Power (µV^2)');
+title('Oscillatory Power Spectral Density')
+%fractal power
+mp1 = mean(SVLD_frac.logpowspctrm,[1 2]);
+var1 = var(mean(SVLD_frac.logpowspctrm,2));
+var1 = squeeze(var1);
+n1 = 112;
+sem1 = sqrt(var1)./sqrt(n1);
+mp1=squeeze(mp1);
+mp2 = mean(notLD_frac.logpowspctrm,[1 2]);
+mp2=squeeze(mp2);
+var2 = var(mean(notLD_frac.logpowspctrm,2));
+var2=squeeze(var2);
+n1 = 112;
+sem2 = sqrt(var2)./sqrt(n1);
+x = [f flip(f)];
+facealpha = 0.4;
+y_above = mp1+sem1;
+y_below = mp1-sem1;
+y_patch = [y_above; flip(y_below)];
+figure;ft_plot_patch(x, y_patch,'facecolor','r','facealpha',facealpha)
+y_above = mp2+sem2;
+y_below = mp2-sem2;
+y_patch = [y_above; flip(y_below)];
+ft_plot_patch(x, y_patch,'facecolor','b','facealpha',facealpha)
+p1=ft_plot_line(f, mp1,'color','r','linewidth',2);
+p2=ft_plot_line(f, mp2,'color','b','linewidth',2);
+legend([p1 p2],{' SVLDs','nonLDs'})
+xlabel('Frequency (Hz)');
+ylabel('Absolute Power (µV^2)');
+title('Fractal Power Spectral Density')
+
+
+
+title('Average Power Spectral Density')
+mp3=mean(LD_frac_contrast.logpowspctrm, [1 2]);
+mp3=squeeze(mp3);
+var3=var(mean(LD_frac_contrast.logpowspctrm,2));
+var3=squeeze(var3);
+sem3=sqrt(var3)./sqrt(n1);
+facealpha = 0.50;
+
+y_above = mp3+sem3;
+y_below = mp3-sem3;
+y_patch = [y_above; flip(y_below)];
+figure;ft_plot_patch(x, y_patch,'facecolor','k','facealpha',facealpha);
+cfg = [];
+cfg.linewidth = 1.5;
+cfg.linecolor = 'k';
+cfg.ylim =[-0.4 1.9];
+ft_plot_line(f, mp3, 'color','g','linewidth',2);
+
+xlabel('Frequency (Hz)');
+ylabel('Fractal Power (µV^2)');
+title('Power Spectral Density Difference')
+%% (ORIG H) Make contrast structures for topoplotting
+%Average PSD SVLD > non-lucid
+LD_origh_contrast = SVLD_origh;
+LD_origh_contrast.powspctrm = SVLD_origh.powspctrm - notLD_origh.powspctrm;
+LD_origh_contrast_a = origh_SVLD_a;
+LD_origh_contrast_a.powspctrm = origh_SVLD_a.powspctrm - origh_notLD_a.powspctrm;
+LD_origh_contrast_d = origh_SVLD_d;
+LD_origh_contrast_d.powspctrm = origh_SVLD_d.powspctrm - origh_notLD_d.powspctrm;
+LD_origh_contrast_b = origh_SVLD_b;
+LD_origh_contrast_b.powspctrm = origh_SVLD_b.powspctrm - origh_notLD_b.powspctrm;
+LD_origh_contrast_t = origh_SVLD_t;
+LD_origh_contrast_t.powspctrm = origh_SVLD_t.powspctrm - origh_notLD_t.powspctrm;
+LD_origh_contrast_g = origh_SVLD_g;
+LD_origh_contrast_g.powspctrm = origh_SVLD_g.powspctrm - origh_notLD_g.powspctrm;
+
+%% (OSCILLATORY) Make contrast structures for topoplotting
+LD_osci_contrast = SVLD_osci;
+LD_osci_contrast.powspctrm = SVLD_osci.powspctrm - notLD_osci.powspctrm;
+LD_osci_contrast_a = osci_SVLD_a;
+LD_osci_contrast_a.powspctrm = osci_SVLD_a.powspctrm - notLD_osci_a.powspctrm;
+LD_osci_contrast_d = osci_SVLD_d;
+LD_osci_contrast_d.powspctrm = osci_SVLD_d.powspctrm - notLD_osci_d.powspctrm;
+LD_osci_contrast_b = osci_SVLD_b;
+LD_osci_contrast_b.powspctrm = osci_SVLD_b.powspctrm - notLD_osci_b.powspctrm;
+LD_osci_contrast_t = osci_SVLD_t;
+LD_osci_contrast_t.powspctrm = osci_SVLD_t.powspctrm - notLD_osci_t.powspctrm;
+LD_osci_contrast_g = osci_SVLD_g;
+LD_osci_contrast_g.powspctrm = osci_SVLD_g.powspctrm - notLD_osci_g.powspctrm;
+%% Frac Pow Contrast
+LD_frac_contrast = SVLD_frac;
+LD_frac_contrast.powspctrm = SVLD_frac.powspctrm - notLD_frac.powspctrm;
+LD_frac_contrast.lowpowspctrm = SVLD_frac.logpowspctrm - notLD_frac.logpowspctrm;
+LD_frac_contrast_a = frac_SVLD_a;
+LD_frac_contrast_a.powspctrm = frac_SVLD_a.powspctrm - frac_notLD_a.powspctrm;
+LD_frac_contrast_d = frac_SVLD_d;
+LD_frac_contrast_d.powspctrm = frac_SVLD_d.powspctrm - frac_notLD_d.powspctrm;
+LD_frac_contrast_b = frac_SVLD_b;
+LD_frac_contrast_b.powspctrm = frac_SVLD_b.powspctrm - frac_notLD_b.powspctrm;
+LD_frac_contrast_t = frac_SVLD_t;
+LD_frac_contrast_t.powspctrm = frac_SVLD_t.powspctrm - frac_notLD_t.powspctrm;
+LD_frac_contrast_g = frac_SVLD_g;
+LD_frac_contrast_g.powspctrm = frac_SVLD_g.powspctrm - frac_notLD_g.powspctrm;
+%% FREQ PLOT OSCI
+% finally, single subject lines colored by group and error bars (SEM) and stat differences
+fh = figure;
+data1 = SVLD_osci;
+data2 = notLD_osci;
+f= linspace(0,45,226);
+
+mp1 = mean(SVLD_osci.powspctrm,[1 2]);
+var1 = var(mean(SVLD_osci.powspctrm,2));
+var1 = squeeze(var1);
+n1 = 112;
+sem1 = sqrt(var1)./sqrt(n1);
+mp1=squeeze(mp1);
+mp2 = mean(notLD_osci.powspctrm,[1 2]);
+mp2=squeeze(mp2);
+var2 = var(mean(notLD_osci.powspctrm,2));
+var2=squeeze(var2);
+n1 = 112;
+sem2 = sqrt(var2)./sqrt(n1);
+figure;
+% ft_plot_line(f,mp1,'color',[0.5 0.5 1],'linewidth',1.5)
+% 
+% ft_plot_line(f,mp2,'color',[1 0.5 0.5],'linewidth',1.5)
+
+
+x = [f flip(f)];
+facealpha = 0.4;
+
+y_above = mp1+sem1;
+y_below = mp1-sem1;
+y_patch = [y_above; flip(y_below)];
+figure;ft_plot_patch(x, y_patch,'facecolor','r','facealpha',facealpha)
+y_above = mp2+sem2;
+y_below = mp2-sem2;
+y_patch = [y_above; flip(y_below)];
+ft_plot_patch(x, y_patch,'facecolor','b','facealpha',facealpha)
+
+p1=ft_plot_line(f, mp1,'color','r','linewidth',2);
+p2=ft_plot_line(f, mp2,'color','b','linewidth',2);
+legend([p1 p2],{'SVLDs','non-LDs'})
+title('Average Power Spectral Density')
+
+
+mp3=mean(LD_osci_contrast.powspctrm, [1 2]);
+mp3=squeeze(mp3);
+var3=var(mean(LD_osci_contrast.powspctrm,2));
+var3=squeeze(var3);
+sem3=sqrt(var3)./sqrt(n1);
+facealpha = 0.50;
+
+y_above = mp3+sem3;
+y_below = mp3-sem3;
+y_patch = [y_above; flip(y_below)];
+figure;ft_plot_patch(x, y_patch,'facecolor','k','facealpha',facealpha)
+cfg = [];
+cfg.linewidth = 1.5;
+cfg.linecolor = 'k';
+xlabel('Frequency (Hz)');
+ylabel('Normalized power (µV^2)');
+title('Power Spectral Density Difference')
+cfg = [];
+cfg.linewidth = 1.5;
+cfg.linecolor = 'k';
+cfg.ylim =[-0.25 0.55];
+ft_singleplotER(cfg, LD_osci_contrast)
+
+%% TOPO Frac
+cfg = [];
+cfg.layout = lay;
+cfg.colorbar     = 'no';
+cfg.zlim = 'maxabs';
+cfg.marker = 'on';
+cfg.markersymbol ='.';
+cfg.markersize = 8;
+cfg.comment          = 'no';
+% figure('position',[680 240 1039 420]);
+figure;subplot(1,5,1); ft_topoplotER(cfg, LD_frac_contrast_d); title('Delta (1-4 Hz)');
+ft_hastoolbox('brewermap', 1);         % ensure this toolbox is on the path
+colormap(flipud(brewermap(64,'RdBu'))) % change the colormap
+subplot(1,5,2); ft_topoplotER(cfg, LD_frac_contrast_t); title('Theta (4-8 Hz)');
+ft_hastoolbox('brewermap', 1);         % ensure this toolbox is on the path
+colormap(flipud(brewermap(64,'RdBu'))) % change the colormap
+subplot(1,5,3); ft_topoplotER(cfg, LD_frac_contrast_a); title('Alpha (8-12 Hz)');
+ft_hastoolbox('brewermap', 1);         % ensure this toolbox is on the path
+colormap(flipud(brewermap(64,'RdBu'))) % change the colormap
+subplot(1,5,4); ft_topoplotER(cfg, LD_frac_contrast_b); title('Beta (12-20 Hz)');
+ft_hastoolbox('brewermap', 1);         % ensure this toolbox is on the path
+colormap(flipud(brewermap(64,'RdBu'))) % change the colormap
+subplot(1,5,5); ft_topoplotER(cfg, LD_frac_contrast_g); title('Gamma (20-45 Hz)');
+ft_hastoolbox('brewermap', 1);         % ensure this toolbox is on the path
+colormap(flipud(brewermap(64,'RdBu'))) % change the colormap
+
+%% TOPOMAPS OSCILLATORY
+cfg = [];
+cfg.layout = lay;
+cfg.colorbar     = 'no';
+ cfg.zlim = 'maxabs'
+cfg.marker = 'on';
+cfg.markersymbol ='.';
+cfg.markersize = 8;
+cfg.comment          = 'no';
+% figure('position',[680 240 1039 420]);
+figure;subplot(1,5,1); ft_topoplotER(cfg, LD_osci_contrast_d); title('Delta (1-4 Hz)');
+ft_hastoolbox('brewermap', 1);         % ensure this toolbox is on the path
+colormap(flipud(brewermap(64,'RdBu'))) % change the colormap
+subplot(1,5,2); ft_topoplotER(cfg, LD_osci_contrast_t); title('Theta (4-8 Hz)');
+ft_hastoolbox('brewermap', 1);         % ensure this toolbox is on the path
+colormap(flipud(brewermap(64,'RdBu'))) % change the colormap
+subplot(1,5,3); ft_topoplotER(cfg, LD_osci_contrast_a); title('Alpha (8-12 Hz)');
+ft_hastoolbox('brewermap', 1);         % ensure this toolbox is on the path
+colormap(flipud(brewermap(64,'RdBu'))) % change the colormap
+subplot(1,5,4); ft_topoplotER(cfg, LD_osci_contrast_b); title('Beta (12-30 Hz)');
+ft_hastoolbox('brewermap', 1);         % ensure this toolbox is on the path
+colormap(flipud(brewermap(64,'RdBu'))) % change the colormap
+subplot(1,5,5); ft_topoplotER(cfg, LD_osci_contrast_g); title('Gamma (30-45 Hz)');
+ft_hastoolbox('brewermap', 1);         % ensure this toolbox is on the path
+colormap(flipud(brewermap(64,'RdBu'))) % change the colormap
+
+%% Permutation Testing
+% do NOT EXECUTE this yet, it is just to introduce the function´
+cfg                 = [];
+cfg.channel          = 'all';
+cfg.avgoverchan     = 'no';
+cfg.frequency        = 'all';
+cfg.avgoverfreq     = 'yes';
+cfg.parameter        = 'powspctrm';
+cfg.method           = 'ft_statistics_montecarlo';
+cfg.statistic        = 'ft_statfun_depsamplesT'; %SHOULD BE DEPENDENT T 
+cfg.correctm         = 'cluster';
+cfg.clusteralpha     = 0.05;
+cfg.minnbchan        = 2;
+cfg.tail             = 0;
+cfg.clustertail      = cfg.tail;
+cfg.neighbours = neighbours;
+cfg.alpha            = 0.05;
+cfg.correcttail      = 'alpha';
+cfg.clusterstatistic = 'maxsum';
+cfg.computeprob      = 'yes';
+cfg.numrandomization = 1000;
+design = zeros(1,size(SVLD_osci.powspctrm,1) + size(notLD_osci.powspctrm,1));
+design(1,1:size(SVLD_osci.powspctrm,1)) = 1; % 1=LUCID %0=NLD
+design(1,(size(SVLD_osci.powspctrm,1)+1):(size(SVLD_osci.powspctrm,1)+...
+size(notLD_osci.powspctrm,1))) = 2;
+ design(2,:)=1:216;
+design(2,1:end)=1;
+cfg.design=design;
+cfg.ivar = 1;
+cfg.uvar = 2;
+% cfg.wvar = within session trials
+stats_frac_g= ft_freqstatistics(cfg,frac_SVLD_g, frac_notLD_g);
+%% Cluster plot
+cfg = [];
+cfg.alpha  = 0.05/5;
+cfg.interactive = 'yes';
+cfg.highlightcolorneg = [1 1 1];
+cfg.highlightsymbolseries = ['.' 'o'];
+cfg.highlightsizeseries = [6 3];
+cfg.zlim = 'maxabs';
+cfg.layout = lay;
+figure;ft_clusterplot(cfg, stats_frac_d);title('Delta (1-4 Hz)'); hold on;
+ft_hastoolbox('brewermap', 1);         % ensure this toolbox is on the path
+colormap(flipud(brewermap(64,'RdBu'))) % change the colormap
+ft_clusterplot(cfg,stats_frac_t);title ('Theta (4-8 Hz)');
+ft_hastoolbox('brewermap', 1);         % ensure this toolbox is on the path
+colormap(flipud(brewermap(64,'RdBu'))) % change the colormap
+ft_clusterplot(cfg,stats_frac_a);title('Alpha (8-12 Hz)');
+ft_hastoolbox('brewermap', 1);         % ensure this toolbox is on the path
+colormap(flipud(brewermap(64,'RdBu'))) % change the colormap
+ft_clusterplot(cfg, stats_frac_b);title('Beta (12-30 Hz)');
+ft_hastoolbox('brewermap', 1);         % ensure this toolbox is on the path
+colormap(flipud(brewermap(64,'RdBu'))) % change the colormap
+ft_clusterplot(cfg, stats_frac_g);title('Gamma (30-45 Hz)');
+ft_hastoolbox('brewermap', 1);         % ensure this toolbox is on the path
+colormap(flipud(brewermap(64,'RdBu'))) % change the colormap
+%% OSCI STATS CLUSTERPLOT
+cfg = [];
+cfg.alpha  = 0.05;
+cfg.interactive = 'yes';
+cfg.highlightcolorneg = [1 1 1];
+cfg.highlightsymbolseries = ['.' '+'];
+% cfg.highlightsizeseries = ['6' '6']
+cfg.layout = lay;
+cfg.colobar='yes';
+ft_clusterplot(cfg, stats_osci_d);title('Delta (1-4 Hz)'); hold on;
+ft_hastoolbox('brewermap', 1);         % ensure this toolbox is on the path
+colormap(flipud(brewermap(64,'RdBu'))) % change the colormap
+ft_clusterplot(cfg,stats_osci_t);title ('Theta (4-8 Hz)');
+ft_hastoolbox('brewermap', 1);         % ensure this toolbox is on the path
+colormap(flipud(brewermap(64,'RdBu'))) % change the colormap
+ft_clusterplot(cfg, stats_osci_a);title('Alpha (8-12 Hz)');
+ft_hastoolbox('brewermap', 1);         % ensure this toolbox is on the path
+colormap(flipud(brewermap(64,'RdBu'))) % change the colormap
+ft_clusterplot(cfg, stats_osci_b);title('Beta (12-20 Hz)');
+ft_hastoolbox('brewermap', 1);         % ensure this toolbox is on the path
+colormap(flipud(brewermap(64,'RdBu'))) % change the colormap
+ft_clusterplot(cfg, stats_osci_g);title('Gamma (20-45 Hz)');
+ft_hastoolbox('brewermap', 1);         % ensure this toolbox is on the path
+colormap(flipud(brewermap(64,'RdBu'))) % change the colormap
